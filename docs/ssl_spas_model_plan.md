@@ -74,10 +74,33 @@
 - [x] supervised fine-tune 루프 구현 — `scripts/train_supervised.py`
 - [x] baseline(SSL 없음) 대비 성능 비교 실행 스크립트 — `scripts/run_pipeline.py`
 
-## 8) 실행 방법
+## 8) 실행 방법 (SSL / Supervised)
+### 8.1 환경 준비
 ```bash
-PYTHONPATH=src python scripts/run_pipeline.py
+python -m venv .venv
+source .venv/bin/activate
+pip install torch numpy
 ```
+
+### 8.2 SSL만 학습
+```bash
+PYTHONPATH=src python scripts/run_pipeline.py --mode ssl --ssl-epochs 5 --batch-size 32
+```
+- 결과: `artifacts/backbone_ssl.pt` 저장
+
+### 8.3 Supervised만 학습
+```bash
+PYTHONPATH=src python scripts/run_pipeline.py --mode supervised --sup-epochs 10 --batch-size 32
+```
+- `artifacts/backbone_ssl.pt`가 있으면 자동 로드 후 fine-tune
+- 없으면 랜덤 초기화로 supervised만 학습
+
+### 8.4 SSL + Supervised 연속 학습 (권장)
+```bash
+PYTHONPATH=src python scripts/run_pipeline.py --mode both --ssl-epochs 5 --sup-epochs 10 --batch-size 32
+```
+- 결과: `artifacts/backbone_ssl.pt`, `artifacts/spas_predictor.pt`
+- 출력: validation/test metric + baseline(SSL 없음) 비교
 
 ## 9) 기대효과
 - 라벨 부족 환경에서 표현학습 성능 향상
