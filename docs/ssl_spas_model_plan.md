@@ -20,7 +20,7 @@
 - 데이터 누수 방지를 위해 `incoming_id` 단위 split
 - 권장 비율: Train / Valid / Test = 70 / 15 / 15
 
-## 3) 모델 구조(초안)
+## 3) 모델 구조
 ### 3.1 Backbone (Recipe Encoder)
 - Step-level 입력 임베딩
   - `step_name` embedding
@@ -28,7 +28,7 @@
   - `param_mat` encoder (MLP)
   - `step_global_pos` positional encoding
 - Sequence encoder
-  - Transformer Encoder(권장) + `step_mask` 적용
+  - Transformer Encoder + `step_mask` 적용
 - 출력: recipe representation `z_recipe`
 
 ### 3.2 Condition Encoder
@@ -47,14 +47,11 @@
 2. **Contrastive Learning (InfoNCE)**
    - 동일 recipe 증강쌍은 positive, 다른 recipe는 negative
 3. **(선택) Step Order Task**
-   - step 순서 예측/이상 순서 판별
-
-> 사전학습 단계는 y 라벨 없이 backbone 표현학습에 집중하고,
-> 이후 supervised fine-tuning으로 `y_value` 예측 성능을 확보한다.
+   - 추후 확장 포인트로 유지
 
 ## 5) 학습 단계
 1. **Stage A: SSL Pretrain**
-   - Backbone만 학습 (MSM + Contrastive)
+   - Backbone 학습 (MSM + Contrastive)
 2. **Stage B: Supervised Fine-tune**
    - Backbone + Condition Encoder + Regression Head end-to-end 학습
 3. **Stage C: Ablation / Tuning**
@@ -63,21 +60,49 @@
 ## 6) 손실함수/평가 지표
 ### 손실함수
 - SSL: `L_ssl = λ1*L_msm + λ2*L_contrast (+ λ3*L_order)`
-- Supervised: Masked Huber Loss(권장) 또는 Masked MSE
+- Supervised: Masked Huber Loss(기본) 또는 Masked MSE
 
 ### 평가 지표
 - 전체: MAE, RMSE, R²
 - 조건별: `spas_item_id`, `wl_id`, wafer 위치 bin 별 성능
 - 운영 관점: 고/중/저 `y_value` 구간별 오차 분석
 
-## 7) 1차 구현 범위 제안
-- [ ] 데이터 로더/콜레이터 (mask 처리 포함)
-- [ ] Transformer 기반 backbone 구현
-- [ ] SSL pretrain 루프 구현
-- [ ] supervised fine-tune 루프 구현
-- [ ] baseline(SSL 없음) 대비 성능 비교 리포트
+## 7) 1차 구현 범위 현황
+- [x] 데이터 로더/콜레이터 (mask 처리 포함) — `src/pcr_ssl/data.py`
+- [x] Transformer 기반 backbone 구현 — `src/pcr_ssl/model.py`
+- [x] SSL pretrain 루프 구현 — `scripts/train_ssl.py`
+- [x] supervised fine-tune 루프 구현 — `scripts/train_supervised.py`
+- [x] baseline(SSL 없음) 대비 성능 비교 실행 스크립트 — `scripts/run_pipeline.py`
 
-## 8) 기대효과
+## 8) 실행 방법 (SSL / Supervised)
+### 8.1 환경 준비
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install torch numpy
+```
+
+### 8.2 SSL만 학습
+```bash
+PYTHONPATH=src python scripts/run_pipeline.py --mode ssl --ssl-epochs 5 --batch-size 32
+```
+- 결과: `artifacts/backbone_ssl.pt` 저장
+
+### 8.3 Supervised만 학습
+```bash
+PYTHONPATH=src python scripts/run_pipeline.py --mode supervised --sup-epochs 10 --batch-size 32
+```
+- `artifacts/backbone_ssl.pt`가 있으면 자동 로드 후 fine-tune
+- 없으면 랜덤 초기화로 supervised만 학습
+
+### 8.4 SSL + Supervised 연속 학습 (권장)
+```bash
+PYTHONPATH=src python scripts/run_pipeline.py --mode both --ssl-epochs 5 --sup-epochs 10 --batch-size 32
+```
+- 결과: `artifacts/backbone_ssl.pt`, `artifacts/spas_predictor.pt`
+- 출력: validation/test metric + baseline(SSL 없음) 비교
+
+## 9) 기대효과
 - 라벨 부족 환경에서 표현학습 성능 향상
 - 새로운 `spas_item_id`/위치 조합에 대한 일반화 개선
 - recipe step 변동성에 대한 robust한 예측
